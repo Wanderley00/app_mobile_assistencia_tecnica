@@ -1,0 +1,8 @@
+{
+  "@@locale": "pt",
+  "osListTitle": "Ordens de Serviço",
+  "confirmLogoutTitle": "Confirmar Saída",
+  "confirmLogoutMessage": "Você tem certeza que deseja sair?",
+  "cancel": "Cancelar",
+  "exit": "Sair"
+}
