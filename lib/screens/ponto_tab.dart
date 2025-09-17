@@ -83,14 +83,14 @@ class _PontoTabState extends State<PontoTab> {
       final Map<int, Map<String, dynamic>> saidasPendentes = {};
 
       for (var action in pendingActions) {
-        final payload = jsonDecode(action['payload']);
+        final payload = jsonDecode(action['payload'] as String);
 
         if (action['action'] == 'register_ponto_entrada') {
           // Lógica existente para criar um novo ponto pendente de entrada
           pontosPendentesNovos.add(
             RegistroPonto(
-              id: -action[
-                  'id'], // ID negativo para indicar que é um item local pendente
+              id: -(action['id']
+                  as int), // ID negativo para indicar que é um item local pendente
               tecnico: _usuarioLogado,
               data: DateTime.parse(payload['data']),
               horaEntrada: payload['hora_entrada'],

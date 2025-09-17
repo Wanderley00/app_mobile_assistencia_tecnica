@@ -53,6 +53,10 @@ class StatusBadge extends StatelessWidget {
         color = AppColors.error;
         text = 'Cancelado';
         break;
+      case 'PENDENTE_APROVACAO':
+        color = const Color.fromARGB(255, 140, 11, 245);
+        text = 'Pendente de Aprovação';
+        break;
 
       // Status Padrão/Pendentes
       case 'AGUARDANDO':

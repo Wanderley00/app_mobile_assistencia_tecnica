@@ -11,6 +11,7 @@ import 'main.dart'; // Para a constante API_BASE_URL
 class UnauthorizedException implements Exception {
   final String message;
   UnauthorizedException(this.message);
+
   @override
   String toString() => message;
 }
@@ -23,6 +24,7 @@ class ApiClient {
   ApiClient(this._baseUrl) : _client = http.Client();
 
   // MÉTODOS PRIVADOS PARA GERENCIAR TOKENS
+
   Future<String?> _getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('accessToken');
@@ -33,8 +35,7 @@ class ApiClient {
     return prefs.getString('refreshToken');
   }
 
-  Future<void> _saveTokens(
-      String newAccessToken, String? newRefreshToken) async {
+  Future _saveTokens(String newAccessToken, String? newRefreshToken) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('accessToken', newAccessToken);
     if (newRefreshToken != null) {
@@ -46,7 +47,6 @@ class ApiClient {
   Future<bool> _handleTokenRefresh() async {
     if (_isRefreshing) return false;
     _isRefreshing = true;
-
     try {
       final refreshToken = await _getRefreshToken();
       if (refreshToken == null) return false;
@@ -63,9 +63,11 @@ class ApiClient {
         debugPrint("Token renovado com sucesso!");
         return true;
       } else {
-        // Se a renovação falhar, o refresh token é inválido. Limpa tudo.
+        // Se a renovação falhar, o refresh token é inválido. Limpa apenas tokens.
         final prefs = await SharedPreferences.getInstance();
-        await prefs.clear();
+        await prefs.remove('accessToken');
+        await prefs.remove('refreshToken');
+        // Não limpa mais currentUserId - cache multiusuário
         return false;
       }
     } finally {
@@ -91,10 +93,10 @@ class ApiClient {
   }
 
   // WRAPPER DE REQUISIÇÃO INTELIGENTE
+
   Future<http.Response> _request(Future<http.Response> Function() makeRequest,
       {bool retry = true}) async {
     var response = await makeRequest();
-
     if (response.statusCode == 401 && retry) {
       debugPrint("Token expirado. Tentando renovar...");
       final bool success = await _handleTokenRefresh();
@@ -109,6 +111,7 @@ class ApiClient {
   }
 
   // MÉTODOS PÚBLICOS (GET, POST, etc.)
+
   Future<http.Response> get(String endpoint) async {
     return _request(() async {
       final url = Uri.parse('$_baseUrl$endpoint');
@@ -150,11 +153,11 @@ class ApiClient {
         request.files.add(await http.MultipartFile.fromPath(fileField, filePath,
             filename: p.basename(filePath)));
       }
+
       return http.Response.fromStream(await request.send());
     };
 
     var response = await makeRequest();
-
     if (response.statusCode == 401) {
       debugPrint("Token expirado em Multipart. Tentando renovar...");
       final success = await _handleTokenRefresh();
@@ -185,12 +188,12 @@ class ApiClient {
         request.files.add(await http.MultipartFile.fromPath(fileField, filePath,
             filename: p.basename(filePath)));
       }
+
       return http.Response.fromStream(await request.send());
     };
 
     // A lógica de retentativa de token é a mesma do postMultipart
     var response = await makeRequest();
-
     if (response.statusCode == 401) {
       debugPrint("Token expirado em Multipart PATCH. Tentando renovar...");
       final success = await _handleTokenRefresh();
@@ -210,9 +213,8 @@ class ApiClient {
       required String cacheKey}) async {
     try {
       final response = await get(endpoint);
-
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        final List data = jsonDecode(utf8.decode(response.bodyBytes));
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(cacheKey, jsonEncode(data));
         return data
@@ -224,11 +226,10 @@ class ApiClient {
       }
     } catch (e) {
       if (e is UnauthorizedException) rethrow; // Repassa a exceção para a UI
-
       final prefs = await SharedPreferences.getInstance();
       final cachedData = prefs.getString(cacheKey);
       if (cachedData != null) {
-        final List<dynamic> data = jsonDecode(cachedData);
+        final List data = jsonDecode(cachedData);
         return data
             .map((item) => fromJson(item as Map<String, dynamic>))
             .toList();
