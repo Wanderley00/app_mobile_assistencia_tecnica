@@ -75,15 +75,15 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
             List<DocumentoOS>.from(os.documentos);
 
         for (var action in pendingActions) {
-          final payload = jsonDecode(action['payload']);
+          final payload = jsonDecode(action['payload'] as String);
 
           if (action['action'] == 'add_document') {
             pendingDocuments.add(
               DocumentoOS(
-                id: action['id'],
+                id: action['id'] as int,
                 titulo: payload['titulo'],
                 tipoDocumento: TipoDocumento(id: 0, nome: 'Pendente'),
-                dataUpload: DateTime.parse(action['timestamp']),
+                dataUpload: DateTime.parse(action['timestamp'] as String),
                 uploadedBy: 'Você (Offline)',
                 isPending: true,
                 localFilePath: payload['arquivo_caminho'],
@@ -92,7 +92,7 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
           } else if (action['action'] == 'create_expense') {
             pendingExpenses.add(
               Despesa(
-                id: action['id'],
+                id: action['id'] as int,
                 descricao: payload['descricao'],
                 valor: double.tryParse(payload['valor'].toString()) ?? 0.0,
                 dataDespesa: DateTime.parse(payload['data_despesa']),
@@ -291,7 +291,9 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
 
     // Lógica para habilitar o botão de conclusão
     bool canConclude = false;
-    if (_ordemServico != null && _ordemServico!.status != 'CONCLUIDA') {
+    if (_ordemServico != null &&
+        _ordemServico!.status != 'CONCLUIDA' &&
+        _ordemServico!.status != 'PENDENTE_APROVACAO') {
       final hasClosedPonto =
           _ordemServico!.pontos.any((p) => p.horaSaida != null);
       final hasRelatorio = _ordemServico!.relatorios.isNotEmpty;

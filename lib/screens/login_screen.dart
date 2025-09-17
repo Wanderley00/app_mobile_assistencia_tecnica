@@ -1,4 +1,4 @@
-// lib/screens/login_screen.dart
+// lib/screens/login_screen.dart - VERSÃO CORRIGIDA
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -6,9 +6,11 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../widgets/wave_clipper.dart';
+import '../auth_helper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -25,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+
     try {
       final response = await http.post(
         Uri.parse('$API_BASE_URL/token/'),
@@ -34,20 +37,24 @@ class _LoginScreenState extends State<LoginScreen> {
           'password': _passwordController.text,
         }),
       );
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        // --- ALTERAÇÃO AQUI ---
-        // Captura ambos os tokens
         final accessToken = data['access'];
         final refreshToken = data['refresh'];
 
-        final prefs = await SharedPreferences.getInstance();
-        // Salva ambos os tokens com nomes claros
-        await prefs.setString('accessToken', accessToken);
-        await prefs.setString('refreshToken', refreshToken);
-        // --- FIM DA ALTERAÇÃO ---
+        // CORREÇÃO PRINCIPAL: Salvar currentUserId junto com os tokens
+        // Usando username como ID único do usuário para filtro multiusuário
+        final currentUserId = _usernameController.text.trim();
 
+        await AuthHelper.saveAuthData(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          currentUserId: currentUserId,
+        );
+
+        // Salvar também o username para exibição na UI
+        final prefs = await SharedPreferences.getInstance();
         await prefs.setString('username', _usernameController.text);
 
         if (!mounted) return;
@@ -74,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SingleChildScrollView(

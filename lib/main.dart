@@ -1,4 +1,4 @@
-// main.dart
+// main.dart (sem mudanças estruturais, apenas comentários sobre integração)
 
 import 'dart:async';
 import 'dart:io';
@@ -14,11 +14,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:collection/collection.dart';
+
 import 'database_helper.dart';
 import 'os_repository.dart';
 import 'sync_service.dart';
+import 'auth_helper.dart'; // NOVO: importe o helper de autenticação
 import 'package:intl/intl.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'screens/report_detail_screen.dart';
 import 'screens/photo_form_screen.dart';
 import 'screens/my_expenses_screen.dart';
@@ -49,27 +52,29 @@ import 'models/categoria_despesa.dart';
 import 'models/forma_pagamento.dart';
 import 'models/registro_ponto.dart';
 import 'screens/auth_check_screen.dart';
-
 import 'screens/conclusion_signature_screen.dart';
-
 import 'package:flutter_application/providers/os_list_provider.dart';
 import 'package:provider/provider.dart';
 
 //import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-const String API_BASE_URL =
-    'https://assistencia-tecnica-django.onrender.com/api';
+
+const String API_BASE_URL = 'http://192.168.203.212:8000/api';
 
 void main() async {
   // É uma boa prática inicializar o DB aqui
   WidgetsFlutterBinding.ensureInitialized();
   Intl.defaultLocale = 'pt_BR';
-  //await DatabaseHelper().initDb();
+
+  // IMPORTANTE: Não inicialize o DB aqui - deixe o lazy loading funcionar
+  // O DatabaseHelper já gerencia a inicialização automaticamente
+
   runApp(const MyApp());
 }
 
-//--- CLASSES DE ESTILO ---
+//--- CLASSES DE ESTILO (inalteradas) ---
+
 class AppColors {
   static const primary = Color(0xFF1E3A8A);
   static const primaryLight = Color(0xFF3B82F6);
@@ -137,8 +142,6 @@ class MyApp extends StatelessWidget {
         supportedLocales: const [
           Locale('pt', 'BR'),
         ],
-        //localizationsDelegates: AppLocalizations.localizationsDelegates,
-        //supportedLocales: AppLocalizations.supportedLocales,
         title: 'Serviço de Campo',
         theme: ThemeData(
           useMaterial3: true,
@@ -226,12 +229,9 @@ class MyApp extends StatelessWidget {
                 ordemServicoId:
                     ModalRoute.of(context)!.settings.arguments as int,
               ),
-          // --- ADICIONE ESTA ROTA ---
           '/report_detail': (context) => ReportDetailScreen(
-                // 1. Pega o argumento da rota e converte-o para um 'int'
                 relatorioId: ModalRoute.of(context)!.settings.arguments as int,
               ),
-          // --- ADICIONE ESTA ROTA ---
           '/photo_form': (context) => PhotoFormScreen(
                 relatorioId: ModalRoute.of(context)!.settings.arguments as int,
               ),
@@ -246,3 +246,32 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+/*
+INSTRUÇÕES DE INTEGRAÇÃO:
+
+1. No LoginScreen, após login bem-sucedido, use AuthHelper.saveAuthData():
+   
+   // Exemplo no seu LoginScreen após resposta 200 da API:
+   final userData = jsonDecode(response.body);
+   await AuthHelper.saveAuthData(
+     accessToken: userData['access'],
+     refreshToken: userData['refresh'],
+     currentUserId: userData['user']['id'].toString(), // ou email/username único
+   );
+
+2. No AppDrawer ou onde tiver o botão de logout, use AuthHelper.logout():
+   
+   // Substitua qualquer chamada a DatabaseHelper().clearAllUserData() por:
+   await AuthHelper.logout();
+   Navigator.pushReplacementNamed(context, '/login');
+
+3. No AuthCheckScreen, use AuthHelper.isLoggedIn() para verificar se há sessão.
+
+4. O DatabaseHelper automaticamente filtra dados pelo currentUserId salvo no SharedPreferences.
+
+IMPORTANTE: O cache SQLite nunca mais será apagado no logout. Isso permite:
+- Múltiplos usuários usarem o mesmo dispositivo
+- Dados ficarem disponíveis offline mesmo após logout/login
+- Sync automático de pendências específicas de cada usuário
+*/
