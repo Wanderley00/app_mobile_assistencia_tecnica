@@ -55,12 +55,14 @@ import 'screens/auth_check_screen.dart';
 import 'screens/conclusion_signature_screen.dart';
 import 'package:flutter_application/providers/os_list_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_application/providers/notification_provider.dart';
+import 'package:flutter_application/screens/notification_screen.dart';
 
 //import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-const String API_BASE_URL = 'http://192.168.203.212:8000/api';
+const String API_BASE_URL = 'http://192.168.18.8:8000/api';
 
 void main() async {
   // É uma boa prática inicializar o DB aqui
@@ -130,8 +132,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => OsListProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => OsListProvider()),
+        ChangeNotifierProvider(create: (context) => NotificationProvider()),
+      ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
         localizationsDelegates: const [
@@ -240,6 +245,7 @@ class MyApp extends StatelessWidget {
             return ConclusionSignatureScreen(osId: osId);
           },
           '/my_expenses': (context) => const MyExpensesScreen(),
+          '/notifications': (context) => const NotificationScreen(),
         },
         debugShowCheckedModeBanner: false,
       ),

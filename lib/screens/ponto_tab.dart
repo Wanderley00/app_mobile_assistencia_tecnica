@@ -16,7 +16,13 @@ import '../api_client.dart';
 
 class PontoTab extends StatefulWidget {
   final int osId;
-  const PontoTab({super.key, required this.osId});
+  final VoidCallback onDataChanged;
+
+  const PontoTab({
+    super.key,
+    required this.osId,
+    required this.onDataChanged,
+  });
 
   @override
   State<PontoTab> createState() => _PontoTabState();
@@ -64,81 +70,62 @@ class _PontoTabState extends State<PontoTab> {
       final connectivityResult = await (Connectivity().checkConnectivity());
       final isOnline = connectivityResult != ConnectivityResult.none;
 
-      // 1. Busca os pontos base (da API se online, do cache se offline)
       List<RegistroPonto> pontosBase;
       if (isOnline) {
-        // Se online, busca da API e o repositório já atualiza o cache
         pontosBase = await _osRepository.getPontos(widget.osId);
       } else {
-        // Se offline, busca diretamente do cache
         pontosBase = await _dbHelper.getPontosFromCache(widget.osId);
       }
 
-      // 2. Busca TODAS as ações pendentes para esta OS
       final pendingActions =
           await _dbHelper.getPendingActionsForOs(widget.osId);
 
       final List<RegistroPonto> pontosPendentesNovos = [];
-      // Mapa para armazenar as atualizações de saída pendentes, com chave sendo o ID do ponto
       final Map<int, Map<String, dynamic>> saidasPendentes = {};
 
       for (var action in pendingActions) {
         final payload = jsonDecode(action['payload'] as String);
 
         if (action['action'] == 'register_ponto_entrada') {
-          // Lógica existente para criar um novo ponto pendente de entrada
           pontosPendentesNovos.add(
             RegistroPonto(
-              id: -(action['id']
-                  as int), // ID negativo para indicar que é um item local pendente
+              id: -(action['id'] as int),
               tecnico: _usuarioLogado,
               data: DateTime.parse(payload['data']),
+              // --- CORREÇÃO 1: Passando a String diretamente ---
               horaEntrada: payload['hora_entrada'],
               observacoes: payload['observacoes_entrada'],
               isPending: true,
             ),
           );
         } else if (action['action'] == 'register_ponto_saida') {
-          // NOVA LÓGICA: Armazena os dados da ação de saída pendente
-          // A chave do mapa é o 'ponto_id' que precisa ser atualizado
           final int pontoIdParaAtualizar = payload['ponto_id'];
           saidasPendentes[pontoIdParaAtualizar] = payload;
         }
       }
 
-      // 3. Modifica a lista de pontos base com os dados das saídas pendentes
       List<RegistroPonto> pontosAtualizados = pontosBase.map((ponto) {
-        // Verifica se existe uma saída pendente registrada para este ponto
         if (saidasPendentes.containsKey(ponto.id)) {
           final payloadSaida = saidasPendentes[ponto.id]!;
-          // Retorna uma CÓPIA do objeto ponto, mas com os dados da saída offline
           return ponto.copyWith(
+            // --- CORREÇÃO 2: Passando a String diretamente ---
             horaSaida: payloadSaida['hora_saida'],
-            // Concatena as observações para não perder a de entrada
             observacoes: (ponto.observacoes ?? "") +
                 "\nSaída (Offline): " +
                 (payloadSaida['observacoes'] ?? ""),
-            isPending:
-                true, // Marca o ponto como tendo uma ação pendente para sincronização
+            isPending: true,
           );
         }
-        // Se não houver saída pendente, retorna o ponto original
         return ponto;
       }).toList();
 
-      // 4. Junta a lista de pontos (já modificada com saídas offline) com as novas entradas pendentes
       final todosOsPontos = [...pontosAtualizados, ...pontosPendentesNovos];
-
-      // Filtra todos os pontos (sincronizados, modificados, novos) para o usuário logado
-      final pontosFiltrados =
-          todosOsPontos.where((p) => p.tecnico == _usuarioLogado).toList();
 
       if (mounted) {
         setState(() {
-          _pontosDoUsuario = pontosFiltrados;
-          // Recalcula qual é o ponto em aberto após aplicar todas as lógicas offline
+          _pontosDoUsuario = todosOsPontos;
           _pontoEmAbertoDoUsuario = _pontosDoUsuario.firstWhereOrNull(
-            (p) => p.horaSaida == null,
+            (p) => p.horaSaida == null && p.tecnico == _usuarioLogado,
           );
           _isLoading = false;
         });
@@ -153,7 +140,6 @@ class _PontoTabState extends State<PontoTab> {
     }
   }
 
-  // ... (O restante do arquivo permanece o mesmo)
   Future<String> _getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -276,6 +262,8 @@ class _PontoTabState extends State<PontoTab> {
                 backgroundColor: AppColors.success,
               ),
             );
+            // --- ADICIONE ESTA LINHA PARA AVISAR A TELA PAI ---
+            widget.onDataChanged();
           }
         } else {
           final responseData = jsonDecode(utf8.decode(response.bodyBytes));
@@ -297,6 +285,8 @@ class _PontoTabState extends State<PontoTab> {
               backgroundColor: AppColors.warning,
             ),
           );
+          // --- ADICIONE ESTA LINHA PARA AVISAR A TELA PAI ---
+          widget.onDataChanged();
         }
       }
     } catch (e) {
@@ -351,6 +341,8 @@ class _PontoTabState extends State<PontoTab> {
                 backgroundColor: AppColors.success,
               ),
             );
+            // --- ADICIONE ESTA LINHA TAMBÉM AQUI ---
+            widget.onDataChanged();
           }
         } else {
           throw Exception('Falha ao encerrar saída.');
@@ -374,6 +366,8 @@ class _PontoTabState extends State<PontoTab> {
               backgroundColor: AppColors.warning,
             ),
           );
+          // --- ADICIONE ESTA LINHA PARA AVISAR A TELA PAI ---
+          widget.onDataChanged();
         }
       }
     } catch (e) {
@@ -411,20 +405,15 @@ class _PontoTabState extends State<PontoTab> {
                           itemBuilder: (context, index) {
                             final ponto = _pontosDoUsuario[index];
 
-                            // --- LÓGICA DE EXIBIÇÃO CORRIGIDA ---
-                            // Extrai as observações de entrada e saída
-                            final obsEntrada = ponto.observacoesEntrada ??
-                                ponto.observacoes
-                                    ?.split('Saída:')[0]
-                                    .replaceFirst('Entrada:', '')
-                                    .trim();
+                            print('--- Renderizando Ponto ID: ${ponto.id} ---');
+                            print(
+                                'ponto.observacoesEntrada: "${ponto.observacoesEntrada}"');
+                            print(
+                                'ponto.observacoes (string completa): "${ponto.observacoes}"');
 
-                            final obsSaida = ponto.horaSaida != null &&
-                                    ponto.observacoes?.contains('Saída:') ==
-                                        true
-                                ? ponto.observacoes!.split('Saída:')[1].trim()
-                                : null;
-                            // --- FIM DA LÓGICA DE EXIBIÇÃO ---
+                            // --- LÓGICA DE EXIBIÇÃO CORRIGIDA ---
+                            final obsEntrada = ponto.observacoesEntrada;
+                            final obsSaida = ponto.observacoes;
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),

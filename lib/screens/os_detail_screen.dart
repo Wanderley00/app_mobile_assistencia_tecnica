@@ -342,7 +342,12 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
                             onRefresh: _fetchOsDetails,
                             child: _buildDetailsTab(_ordemServico!),
                           ),
-                          PontoTab(osId: widget.osId),
+                          PontoTab(
+                            osId: widget.osId,
+                            onDataChanged:
+                                _fetchOsDetails, // PASSE A FUNÇÃO AQUI
+                          ),
+                          // --- FIM DA ALTERAÇÃO ---
                           RefreshIndicator(
                             onRefresh: _fetchOsDetails,
                             child: _buildRelatoriosTab(_ordemServico!),
@@ -547,6 +552,9 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _buildHistoricoAprovacoes(os),
+          // -----------------------------------------------
         ],
       ),
     );
@@ -1013,6 +1021,89 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHistoricoAprovacoes(OrdemServico os) {
+    if (os.historicoAprovacoes.isEmpty) {
+      return const SizedBox.shrink(); // Não mostra nada se não houver histórico
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        title: Text('Histórico de Aprovações', style: AppTextStyles.subtitle1),
+        leading: const Icon(Icons.history_toggle_off_outlined),
+        children: <Widget>[
+          const Divider(height: 1),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: os.historicoAprovacoes.length,
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, indent: 16, endIndent: 16),
+            itemBuilder: (context, index) {
+              final historico = os.historicoAprovacoes[index];
+              final bool isAprovado = historico.acao == 'APROVADA';
+
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Resposta do Gestor (${historico.usuario})',
+                            style:
+                                AppTextStyles.subtitle1.copyWith(fontSize: 15),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          DateFormat('dd/MM/yy HH:mm')
+                              .format(historico.dataAcao.toLocal()),
+                          style: AppTextStyles.caption,
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          isAprovado ? Icons.check_circle : Icons.cancel,
+                          color:
+                              isAprovado ? AppColors.success : AppColors.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '"${historico.comentario}"',
+                            style: AppTextStyles.body2
+                                .copyWith(fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (historico.tecnicoFinalizou != null &&
+                        historico.dataFinalizacaoTecnico != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: Text(
+                          'Referente à conclusão de ${historico.tecnicoFinalizou} em ${DateFormat('dd/MM/yy HH:mm').format(historico.dataFinalizacaoTecnico!.toLocal())}',
+                          style: AppTextStyles.caption,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

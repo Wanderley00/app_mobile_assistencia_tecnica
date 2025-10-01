@@ -7,11 +7,13 @@ class AuthHelper {
     required String accessToken,
     required String refreshToken,
     required String currentUserId,
+    required String username,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('accessToken', accessToken);
     await prefs.setString('refreshToken', refreshToken);
     await prefs.setString('currentUserId', currentUserId);
+    await prefs.setString('username', username);
   }
 
   static Future<void> logout() async {
@@ -19,6 +21,7 @@ class AuthHelper {
     await prefs.remove('accessToken');
     await prefs.remove('refreshToken');
     await prefs.remove('currentUserId');
+    await prefs.remove('username');
   }
 
   static Future<bool> isLoggedIn() async {
