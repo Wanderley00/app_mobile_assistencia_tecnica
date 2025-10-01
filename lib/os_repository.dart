@@ -530,4 +530,27 @@ class OsRepository {
       cacheKey: cacheKey,
     );
   }
+
+  /// Baixa o PDF de um relatório e o salva em um arquivo temporário.
+  /// Retorna o caminho do arquivo local.
+  Future<String> downloadRelatorioPDF(int relatorioId) async {
+    try {
+      final response =
+          await _apiClient.get('/relatorios-campo/$relatorioId/pdf/');
+
+      if (response.statusCode == 200) {
+        final tempDir = await getTemporaryDirectory();
+        final filePath = p.join(tempDir.path, 'relatorio_$relatorioId.pdf');
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      } else {
+        throw Exception(
+            'Falha ao baixar o PDF. Status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Erro no download do PDF: $e');
+      rethrow;
+    }
+  }
 }

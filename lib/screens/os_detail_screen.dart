@@ -26,6 +26,7 @@ import '../models/tipo_documento.dart';
 import '../models/relatorio_campo.dart';
 import 'report_form_screen.dart';
 import '../models/registro_ponto.dart';
+import 'pdf_viewer_screen.dart';
 
 class OsDetailScreen extends StatefulWidget {
   final int osId;
@@ -1012,6 +1013,39 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
                 ],
               ),
               isThreeLine: true,
+              trailing: IconButton(
+                icon: const Icon(Icons.picture_as_pdf_outlined,
+                    color: AppColors.primary),
+                tooltip: 'Ver PDF',
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Baixando PDF...')),
+                  );
+                  try {
+                    final filePath =
+                        await _osRepository.downloadRelatorioPDF(relatorio.id);
+                    if (mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PdfViewerScreen(
+                            filePath: filePath,
+                            title: relatorio.tipoRelatorio.nome,
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Erro ao baixar PDF: $e'),
+                            backgroundColor: AppColors.error),
+                      );
+                    }
+                  }
+                },
+              ),
               onTap: () {
                 Navigator.of(context).pushNamed(
                   '/report_detail',
