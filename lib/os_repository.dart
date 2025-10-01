@@ -59,13 +59,21 @@ class OsRepository {
   }
 
   // --- MUDANÇA 2: Lógica de `fetchAllAndCache` completamente reestruturada e corrigida ---
-  Future<void> fetchAllAndCache() async {
+  Future<void> fetchAllAndCache(Function(String?) onProgress) async {
     print("Iniciando sincronização completa e cache de todas as ordens...");
 
     final ordensResumidas = await _fetchFromApi();
     final List<OrdemServico> ordensCompletasParaCache = [];
 
+    final totalOrdens = ordensResumidas.length;
+    int ordemAtual = 0;
+
     for (var osResumo in ordensResumidas) {
+      ordemAtual++;
+      // Notifica o progresso para a UI
+      onProgress(
+          'Baixando OS $ordemAtual de $totalOrdens: ${osResumo.numeroOs}...');
+
       try {
         OrdemServico osDetalhada = await _fetchOsDetailsFromApi(osResumo.id);
 
@@ -143,7 +151,10 @@ class OsRepository {
       }
     }
 
+    onProgress('Salvando dados no cache local...');
     await _dbHelper.cacheOrdensServico(ordensCompletasParaCache);
+
+    onProgress('Atualizando dados de formulários...');
 
     // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
     // Passo 7: Pré-carrega o cache dos dados do formulário de relatório (horas e tipos).
@@ -195,10 +206,6 @@ class OsRepository {
   Future<OrdemServico> _fetchOsDetailsFromApi(int osId) async {
     final response = await _apiClient.get('/ordens-servico/$osId/');
     final data = jsonDecode(utf8.decode(response.bodyBytes));
-
-    print("--- Dados da API para a OS $osId ---");
-    print(data);
-    print("---------------------------------------");
 
     return OrdemServico.fromJson(data);
   }

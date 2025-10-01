@@ -27,6 +27,7 @@ dependencies:
   open_file: ^3.3.2
   signature: ^5.4.1
   image_picker: ^1.0.7
+  badges: ^3.1.2
   #open_file_plus: ^3.4.1 # PACOTE ADICIONADO AQUI
 
   cupertino_icons: ^1.0.8

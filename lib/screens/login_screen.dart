@@ -33,32 +33,36 @@ class _LoginScreenState extends State<LoginScreen> {
         Uri.parse('$API_BASE_URL/token/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'username': _usernameController.text,
+          'username': _usernameController.text.trim(),
           'password': _passwordController.text,
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
+        // 1. Pega TODOS os dados da resposta da API
         final accessToken = data['access'];
         final refreshToken = data['refresh'];
+        final username = data['username']; // O nome completo vindo do Django
+        final userId =
+            data['user_id'].toString(); // O ID numérico vindo do Django
 
-        // CORREÇÃO PRINCIPAL: Salvar currentUserId junto com os tokens
-        // Usando username como ID único do usuário para filtro multiusuário
-        final currentUserId = _usernameController.text.trim();
-
+        // 2. Faz uma ÚNICA chamada ao AuthHelper com todos os dados
         await AuthHelper.saveAuthData(
           accessToken: accessToken,
           refreshToken: refreshToken,
-          currentUserId: currentUserId,
+          currentUserId: userId,
+          username: username, // Passa o nome para ser salvo centralmente
         );
 
-        // Salvar também o username para exibição na UI
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('username', _usernameController.text);
+        // 3. O salvamento manual do username que existia aqui foi REMOVIDO,
+        // pois o AuthHelper agora cuida de tudo.
 
         if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/os_list');
+        // Navega para a tela raiz, que agora é a AuthCheckScreen.
+        // Ela irá redirecionar para a /os_list automaticamente.
+        Navigator.pushReplacementNamed(context, '/');
       } else {
         setState(() {
           _errorMessage = 'Usuário ou senha inválidos.';

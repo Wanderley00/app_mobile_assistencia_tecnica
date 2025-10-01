@@ -12,10 +12,13 @@ import '../utils/error_handler.dart';
 import '../api_client.dart';
 import '../database_helper.dart';
 import '../auth_helper.dart';
+import '../services/notification_service.dart';
+import 'notification_provider.dart';
 
 class OsListProvider with ChangeNotifier {
   final OsRepository _repository = OsRepository();
   final SyncService _syncService = SyncService();
+  final NotificationService _notificationService = NotificationService();
 
   bool _isDownloading = false;
   bool _isSyncing = false;
@@ -25,6 +28,8 @@ class OsListProvider with ChangeNotifier {
   List<OrdemServico> _filteredOrdensServico = [];
   String? _errorMessage;
   String _username = 'Usuário';
+  String? _syncMessage;
+  String? get syncMessage => _syncMessage;
   bool _isOnline = true;
   late StreamSubscription<ConnectivityResult> _connectivitySubscription;
   DateTime _lastInteractionTime = DateTime.now();
@@ -34,6 +39,7 @@ class OsListProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get username => _username;
   DateTime get lastInteractionTime => _lastInteractionTime;
+  String get currentSearchQuery => _currentSearchQuery;
   String get activeStatusFilter => _activeStatusFilter;
   bool get isDownloading => _isDownloading;
   bool get isSyncing => _isSyncing;
@@ -45,10 +51,20 @@ class OsListProvider with ChangeNotifier {
   }
 
   Future initialize() async {
+    // --- INÍCIO DA CORREÇÃO ---
+    // 1. Faz uma verificação inicial e imediata da conectividade.
+    final connectivityResult = await (Connectivity().checkConnectivity());
+    _isOnline = connectivityResult != ConnectivityResult.none;
+    notifyListeners(); // Notifica a UI sobre o estado inicial correto, antes de qualquer outra coisa.
+    // --- FIM DA CORREÇÃO ---
+
     await _loadUserData();
     await loadOrdensFromCache();
     _setupConnectivityListener();
-    await syncAllChanges();
+
+    if (_isOnline) {
+      await syncAllChanges();
+    }
   }
 
   void filterOrdens(String query) {
@@ -94,6 +110,7 @@ class OsListProvider with ChangeNotifier {
 
   Future _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
+
     _username = prefs.getString('username') ?? 'Usuário';
     notifyListeners();
   }
@@ -153,14 +170,20 @@ class OsListProvider with ChangeNotifier {
     }
   }
 
-  Future fetchAllAndCache() async {
+  Future<void> fetchAllAndCache(
+      NotificationProvider notificationProvider) async {
     if (_isDownloading) return;
     _isDownloading = true;
     notifyListeners();
 
     try {
-      await _repository.fetchAllAndCache();
+      // Passa a função 'updateSyncMessage' para o repositório
+      await _repository.fetchAllAndCache(updateSyncMessage);
+
+      // A lógica de depois continua a mesma
+      await _notificationService.getNotifications();
       await loadOrdensFromCache();
+      await notificationProvider.fetchUnreadCount();
       _errorMessage = null;
     } on UnauthorizedException catch (e) {
       _errorMessage = ErrorHandler.getUserFriendlyMessage(e);
@@ -169,8 +192,17 @@ class OsListProvider with ChangeNotifier {
       _errorMessage = ErrorHandler.getUserFriendlyMessage(e);
     } finally {
       _isDownloading = false;
+      // Limpa a mensagem no final
+      if (_syncMessage != null) {
+        _syncMessage = null;
+      }
       notifyListeners();
     }
+  }
+
+  void updateSyncMessage(String? message) {
+    _syncMessage = message;
+    notifyListeners();
   }
 
   Future syncAllChanges() async {
@@ -179,14 +211,20 @@ class OsListProvider with ChangeNotifier {
     notifyListeners();
     _errorMessage = null;
 
+    // --- CORREÇÃO DE LÓGICA APLICADA AQUI ---
+    // 1. Primeiro, descobrimos quais OSs serão afetadas ANTES de processar a fila.
     final List<int> osIdsToUpdate =
         await _syncService.getDistinctOsIdsFromPendingActions();
+    // --- FIM DA CORREÇÃO ---
 
     try {
-      await _syncService.processSyncQueue();
+      // 2. Agora, processamos a fila (que irá limpar as ações pendentes)
+      await _syncService.processSyncQueue(updateSyncMessage);
+
       final connectivityResult = await (Connectivity().checkConnectivity());
       final isOnline = connectivityResult != ConnectivityResult.none;
 
+      // 3. Se estivermos online e houver OSs para atualizar, fazemos o refresh do cache delas.
       if (isOnline && osIdsToUpdate.isNotEmpty) {
         print("Atualizando cache para as OSs modificadas: $osIdsToUpdate");
         for (final osId in osIdsToUpdate) {
@@ -207,6 +245,9 @@ class OsListProvider with ChangeNotifier {
     } finally {
       await loadOrdensFromCache();
       _isSyncing = false;
+      if (_syncMessage != null) {
+        _syncMessage = null;
+      }
       notifyListeners();
     }
   }

@@ -3,20 +3,51 @@
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'database_helper.dart';
-import 'main.dart'; // API_BASE_URL
+import 'main.dart';
 import 'api_client.dart';
 
 class SyncService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   final ApiClient _apiClient = ApiClient(API_BASE_URL);
 
+  // --- O MÉTODO FALTANTE FOI ADICIONADO DE VOLTA AQUI ---
   Future<List<int>> getDistinctOsIdsFromPendingActions() async {
     return await _dbHelper.getDistinctOsIdsFromPendingActions();
   }
 
-  Future<void> processSyncQueue() async {
+  // --- 1. MÉTODO AUXILIAR ADICIONADO ---
+  String _getActionDescription(String actionType) {
+    switch (actionType) {
+      case 'create_report':
+        return 'Criando relatório';
+      case 'edit_report':
+        return 'Editando relatório';
+      case 'create_expense':
+        return 'Registrando despesa';
+      case 'edit_expense':
+        return 'Editando despesa';
+      case 'delete_expense':
+        return 'Deletando despesa';
+      case 'add_document':
+        return 'Enviando documento';
+      case 'edit_document':
+        return 'Editando documento';
+      case 'delete_document':
+        return 'Deletando documento';
+      case 'register_ponto_entrada':
+        return 'Marcando ponto de entrada';
+      case 'register_ponto_saida':
+        return 'Encerrando ponto de saída';
+      case 'add_photo':
+        return 'Enviando foto';
+      default:
+        return 'Processando ação';
+    }
+  }
+
+  // --- 2. MÉTODO PRINCIPAL MODIFICADO ---
+  Future<void> processSyncQueue(Function(String?) onProgress) async {
     print("Verificando a fila de sincronização...");
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (connectivityResult == ConnectivityResult.none) {
@@ -24,40 +55,44 @@ class SyncService {
       return;
     }
 
-    // Busca apenas pendências do usuário corrente (filtradas no helper).
     final pendingActions = await _dbHelper.getPendingActions();
     if (pendingActions.isEmpty) {
       print("Fila de sincronização vazia.");
       return;
     }
 
-    print(
-        "Itens pendentes na fila: ${pendingActions.length}. Iniciando sincronização...");
-    final Map<int, List<Map<String, Object?>>> actionsByOs = {};
-    for (var action in pendingActions) {
-      final osId = action['os_id'] as int;
-      actionsByOs.putIfAbsent(osId, () => []).add(action);
-    }
+    final totalActions = pendingActions.length;
+    int currentActionIndex = 0;
 
-    for (final osId in actionsByOs.keys) {
-      final osActions = actionsByOs[osId]!;
-      for (var action in osActions) {
-        try {
-          final success = await _syncAction(action);
-          if (success) {
-            await _dbHelper.deletePendingAction(action['id'] as int);
-            print(
-                "Ação ${action['id']} (${action['action']}) da OS $osId sincronizada e removida.");
-          } else {
-            print(
-                "Falha ao sincronizar a ação ${action['id']}. Permanecerá na fila.");
-          }
-        } catch (e) {
-          print("Erro ao processar a ação ${action['id']}: $e");
+    print("Itens pendentes na fila: $totalActions. Iniciando sincronização...");
+
+    for (var action in pendingActions) {
+      currentActionIndex++;
+      final actionDescription =
+          _getActionDescription(action['action'] as String);
+      final progressMessage =
+          'Sincronizando ${currentActionIndex} de ${totalActions}: $actionDescription...';
+
+      // Chama o callback para notificar a UI do progresso
+      onProgress(progressMessage);
+
+      try {
+        final success = await _syncAction(action);
+        if (success) {
+          await _dbHelper.deletePendingAction(action['id'] as int);
+          print(
+              "Ação ${action['id']} ($actionDescription) sincronizada e removida.");
+        } else {
+          print(
+              "Falha ao sincronizar a ação ${action['id']}. Permanecerá na fila.");
         }
+      } catch (e) {
+        print("Erro ao processar a ação ${action['id']}: $e");
       }
     }
 
+    // Limpa a mensagem de progresso no final
+    onProgress(null);
     print("Processamento da fila de sincronização concluído.");
   }
 

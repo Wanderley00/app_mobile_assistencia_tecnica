@@ -7,6 +7,7 @@ import 'despesa.dart';
 import 'membro_equipe.dart';
 import 'documento_os.dart';
 import 'registro_ponto.dart';
+import 'historico_aprovacao.dart';
 
 class OrdemServico {
   final int id;
@@ -30,6 +31,7 @@ class OrdemServico {
   final List<MembroEquipe> equipe;
   final List<DocumentoOS> documentos;
   final List<RegistroPonto> pontos;
+  final List<HistoricoAprovacao> historicoAprovacoes;
   final bool hasPendingActions;
 
   OrdemServico({
@@ -54,6 +56,7 @@ class OrdemServico {
     this.equipe = const [],
     this.documentos = const [],
     this.pontos = const [],
+    this.historicoAprovacoes = const [],
     this.hasPendingActions = false,
   });
 
@@ -64,6 +67,7 @@ class OrdemServico {
     List<MembroEquipe>? equipe,
     List<DocumentoOS>? documentos,
     bool? hasPendingActions,
+    List<HistoricoAprovacao>? historicoAprovacoes,
     // Adicione outros campos se quiser permitir cópia customizada
   }) {
     return OrdemServico(
@@ -88,6 +92,7 @@ class OrdemServico {
       equipe: equipe ?? this.equipe,
       documentos: documentos ?? this.documentos,
       pontos: pontos ?? this.pontos,
+      historicoAprovacoes: historicoAprovacoes ?? this.historicoAprovacoes,
       hasPendingActions: hasPendingActions ?? this.hasPendingActions,
     );
   }
@@ -133,6 +138,9 @@ class OrdemServico {
       pontos: (json['pontos'] as List? ?? [])
           .map((p) => RegistroPonto.fromJson(p))
           .toList(),
+      historicoAprovacoes: (json['historico_aprovacoes'] as List? ?? [])
+          .map((h) => HistoricoAprovacao.fromJson(h))
+          .toList(),
     );
   }
 
@@ -160,6 +168,8 @@ class OrdemServico {
       'equipe': equipe.map((e) => e.toJson()).toList(),
       'documentos': documentos.map((doc) => doc.toJson()).toList(),
       'pontos': pontos.map((p) => p.toJson()).toList(),
+      'historico_aprovacoes':
+          historicoAprovacoes.map((h) => h.toJson()).toList(),
     };
   }
 }
