@@ -21,8 +21,6 @@ class OsListScreen extends StatefulWidget {
 
 class _OsListScreenState extends State<OsListScreen> {
   final TextEditingController _searchController = TextEditingController();
-  Timer? _inactivityTimer;
-  static const _sessionTimeout = Duration(minutes: 20);
 
   @override
   void initState() {
@@ -42,24 +40,6 @@ class _OsListScreenState extends State<OsListScreen> {
       }
     });
     // --- FIM DA CORREÇÃO ---
-
-    _resetInactivityTimer();
-  }
-
-  void _resetInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      final lastInteraction =
-          context.read<OsListProvider>().lastInteractionTime;
-      if (DateTime.now().difference(lastInteraction) > _sessionTimeout) {
-        _logout(sessionExpired: true);
-        _inactivityTimer?.cancel();
-      }
-    });
-  }
-
-  void _onUserInteraction() {
-    context.read<OsListProvider>().updateInteractionTime();
   }
 
   void _filterOrdens() {
@@ -128,7 +108,6 @@ class _OsListScreenState extends State<OsListScreen> {
   void dispose() {
     _searchController.removeListener(_filterOrdens);
     _searchController.dispose();
-    _inactivityTimer?.cancel();
     super.dispose();
   }
 
@@ -250,196 +229,191 @@ class _OsListScreenState extends State<OsListScreen> {
   Widget build(BuildContext context) {
     final osProvider = context.watch<OsListProvider>();
 
-    return GestureDetector(
-      onTap: _onUserInteraction,
-      onPanDown: (_) => _onUserInteraction(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Ordens de Serviço'),
-          actions: [
-            osProvider.isDownloading
-                ? Container(
-                    width: 48.0,
-                    height: 48.0,
-                    padding: const EdgeInsets.all(12.0),
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: AppColors.primary,
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons
-                        .download_outlined), // Ícone atualizado para consistência
-                    tooltip: 'Baixar todas as ordens',
-                    onPressed: osProvider.isBusy
-                        ? null
-                        : () {
-                            if (osProvider.isOnline) {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(const SnackBar(
-                                content: Text(
-                                    'Baixando todas as ordens e notificações...'), // Mensagem um pouco mais clara
-                                behavior: SnackBarBehavior.floating,
-                              ));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Ordens de Serviço'),
+        actions: [
+          osProvider.isDownloading
+              ? Container(
+                  width: 48.0,
+                  height: 48.0,
+                  padding: const EdgeInsets.all(12.0),
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.primary,
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons
+                      .download_outlined), // Ícone atualizado para consistência
+                  tooltip: 'Baixar todas as ordens',
+                  onPressed: osProvider.isBusy
+                      ? null
+                      : () {
+                          if (osProvider.isOnline) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(const SnackBar(
+                              content: Text(
+                                  'Baixando todas as ordens e notificações...'), // Mensagem um pouco mais clara
+                              behavior: SnackBarBehavior.floating,
+                            ));
 
-                              // --- INÍCIO DA CORREÇÃO ---
-                              // 1. Pega a instância do NotificationProvider
-                              final notificationProvider =
-                                  context.read<NotificationProvider>();
+                            // --- INÍCIO DA CORREÇÃO ---
+                            // 1. Pega a instância do NotificationProvider
+                            final notificationProvider =
+                                context.read<NotificationProvider>();
 
-                              // 2. Chama a função de download passando o provider como argumento
-                              context
-                                  .read<OsListProvider>()
-                                  .fetchAllAndCache(notificationProvider);
-                              // --- FIM DA CORREÇÃO ---
-                            } else {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(const SnackBar(
-                                content: Text(
-                                    'Para realizar o download, você precisa estar conectado à internet.'),
-                                backgroundColor: AppColors.error,
-                                behavior: SnackBarBehavior.floating,
-                              ));
-                            }
-                          },
-                  ),
-            Consumer<NotificationProvider>(
-              builder: (context, notificationProvider, child) {
-                return badges.Badge(
-                  position: badges.BadgePosition.topEnd(top: 0, end: 3),
-                  showBadge: notificationProvider.unreadCount > 0,
-                  badgeContent: Text(
-                    notificationProvider.unreadCount.toString(),
-                    style: const TextStyle(color: Colors.white, fontSize: 10),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/notifications');
-                    },
-                  ),
-                );
-              },
+                            // 2. Chama a função de download passando o provider como argumento
+                            context
+                                .read<OsListProvider>()
+                                .fetchAllAndCache(notificationProvider);
+                            // --- FIM DA CORREÇÃO ---
+                          } else {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(const SnackBar(
+                              content: Text(
+                                  'Para realizar o download, você precisa estar conectado à internet.'),
+                              backgroundColor: AppColors.error,
+                              behavior: SnackBarBehavior.floating,
+                            ));
+                          }
+                        },
+                ),
+          Consumer<NotificationProvider>(
+            builder: (context, notificationProvider, child) {
+              return badges.Badge(
+                position: badges.BadgePosition.topEnd(top: 0, end: 3),
+                showBadge: notificationProvider.unreadCount > 0,
+                badgeContent: Text(
+                  notificationProvider.unreadCount.toString(),
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.notifications_outlined),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/notifications');
+                  },
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8), // Espaçamento
+        ],
+      ),
+      drawer: AppDrawer(
+        username: osProvider.username,
+        onLogout: () => _logout(),
+      ),
+      // --- INÍCIO DA CORREÇÃO ---
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            if (!osProvider.isOnline) _buildOfflineBanner(),
+
+            // --- 2. ADICIONE A CHAMADA PARA O NOVO BANNER AQUI ---
+            _buildSyncStatusBanner(),
+
+            Padding(
+              padding:
+                  const EdgeInsets.fromLTRB(16, 16, 16, 8), // Ajuste no padding
+              child: TextField(
+                controller: _searchController,
+                decoration: const InputDecoration(
+                  labelText: 'Buscar OS, cliente, equipamento...',
+                  prefixIcon: Icon(Icons.search),
+                ),
+              ),
             ),
-            const SizedBox(width: 8), // Espaçamento
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: ToggleButtons(
+                onPressed: (int index) {
+                  final newStatus = index == 0 ? 'Em andamento' : 'Concluída';
+                  context
+                      .read<OsListProvider>()
+                      .setActiveStatusFilter(newStatus);
+                },
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                borderColor: Colors.grey.shade300,
+                selectedBorderColor: AppColors.primary,
+                selectedColor: Colors.white,
+                fillColor: AppColors.primary,
+                color: AppColors.primary,
+                constraints: BoxConstraints(
+                  minHeight: 40.0,
+                  minWidth: (MediaQuery.of(context).size.width - 36) / 2,
+                ),
+                isSelected: [
+                  osProvider.activeStatusFilter == 'Em andamento',
+                  osProvider.activeStatusFilter == 'Concluída',
+                ],
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('Em Andamento'),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('Concluídas'),
+                  ),
+                ],
+              ),
+            ),
+            // 2. O WIDGET 'Expanded' FOI REMOVIDO DAQUI
+            RefreshIndicator(
+              onRefresh: _refreshData,
+              child: osProvider.isBusy &&
+                      osProvider.filteredOrdensServico.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : osProvider.filteredOrdensServico.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          // 3. AS DUAS PROPRIEDADES ABAIXO FORAM ADICIONADAS
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          //--------------------------------------------
+                          padding: const EdgeInsets.only(bottom: 80),
+                          itemCount: osProvider.filteredOrdensServico.length,
+                          itemBuilder: (context, index) {
+                            final os = osProvider.filteredOrdensServico[index];
+                            return OsCard(
+                              ordemServico: os,
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => OsDetailScreen(
+                                      osId: os.id,
+                                      osNumero: os.numeroOs,
+                                    ),
+                                  ),
+                                );
+                                _refreshData();
+                              },
+                            );
+                          },
+                        ),
+            ),
           ],
         ),
-        drawer: AppDrawer(
-          username: osProvider.username,
-          onLogout: () => _logout(),
-        ),
-        // --- INÍCIO DA CORREÇÃO ---
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              if (!osProvider.isOnline) _buildOfflineBanner(),
-
-              // --- 2. ADICIONE A CHAMADA PARA O NOVO BANNER AQUI ---
-              _buildSyncStatusBanner(),
-
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    16, 16, 16, 8), // Ajuste no padding
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Buscar OS, cliente, equipamento...',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: ToggleButtons(
-                  onPressed: (int index) {
-                    final newStatus = index == 0 ? 'Em andamento' : 'Concluída';
-                    context
-                        .read<OsListProvider>()
-                        .setActiveStatusFilter(newStatus);
-                  },
-                  borderRadius: const BorderRadius.all(Radius.circular(8)),
-                  borderColor: Colors.grey.shade300,
-                  selectedBorderColor: AppColors.primary,
-                  selectedColor: Colors.white,
-                  fillColor: AppColors.primary,
-                  color: AppColors.primary,
-                  constraints: BoxConstraints(
-                    minHeight: 40.0,
-                    minWidth: (MediaQuery.of(context).size.width - 36) / 2,
-                  ),
-                  isSelected: [
-                    osProvider.activeStatusFilter == 'Em andamento',
-                    osProvider.activeStatusFilter == 'Concluída',
-                  ],
-                  children: const [
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Em Andamento'),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Concluídas'),
-                    ),
-                  ],
-                ),
-              ),
-              // 2. O WIDGET 'Expanded' FOI REMOVIDO DAQUI
-              RefreshIndicator(
-                onRefresh: _refreshData,
-                child: osProvider.isBusy &&
-                        osProvider.filteredOrdensServico.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : osProvider.filteredOrdensServico.isEmpty
-                        ? _buildEmptyState()
-                        : ListView.builder(
-                            // 3. AS DUAS PROPRIEDADES ABAIXO FORAM ADICIONADAS
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            //--------------------------------------------
-                            padding: const EdgeInsets.only(bottom: 80),
-                            itemCount: osProvider.filteredOrdensServico.length,
-                            itemBuilder: (context, index) {
-                              final os =
-                                  osProvider.filteredOrdensServico[index];
-                              return OsCard(
-                                ordemServico: os,
-                                onTap: () async {
-                                  await Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => OsDetailScreen(
-                                        osId: os.id,
-                                        osNumero: os.numeroOs,
-                                      ),
-                                    ),
-                                  );
-                                  _refreshData();
-                                },
-                              );
-                            },
-                          ),
-              ),
-            ],
-          ),
-        ),
-        // --- FIM DA CORREÇÃO ---
-        floatingActionButton: FloatingActionButton(
-          onPressed: osProvider.isBusy
-              ? null
-              : () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Sincronizando dados pendentes...'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                  context.read<OsListProvider>().syncAllChanges();
-                },
-          tooltip: 'Sincronizar dados pendentes',
-          child: osProvider.isSyncing
-              ? const CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 3.0,
-                )
-              : const Icon(Icons.sync),
-        ),
+      ),
+      // --- FIM DA CORREÇÃO ---
+      floatingActionButton: FloatingActionButton(
+        onPressed: osProvider.isBusy
+            ? null
+            : () {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Sincronizando dados pendentes...'),
+                  behavior: SnackBarBehavior.floating,
+                ));
+                context.read<OsListProvider>().syncAllChanges();
+              },
+        tooltip: 'Sincronizar dados pendentes',
+        child: osProvider.isSyncing
+            ? const CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 3.0,
+              )
+            : const Icon(Icons.sync),
       ),
     );
   }
