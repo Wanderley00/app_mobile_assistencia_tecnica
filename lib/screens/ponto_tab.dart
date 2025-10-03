@@ -13,14 +13,15 @@ import '../main.dart';
 import '../models/registro_ponto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api_client.dart';
+import '../models/ordem_servico.dart';
 
 class PontoTab extends StatefulWidget {
-  final int osId;
+  final OrdemServico os;
   final VoidCallback onDataChanged;
 
   const PontoTab({
     super.key,
-    required this.osId,
+    required this.os,
     required this.onDataChanged,
   });
 
@@ -72,13 +73,13 @@ class _PontoTabState extends State<PontoTab> {
 
       List<RegistroPonto> pontosBase;
       if (isOnline) {
-        pontosBase = await _osRepository.getPontos(widget.osId);
+        pontosBase = await _osRepository.getPontos(widget.os.id);
       } else {
-        pontosBase = await _dbHelper.getPontosFromCache(widget.osId);
+        pontosBase = await _dbHelper.getPontosFromCache(widget.os.id);
       }
 
       final pendingActions =
-          await _dbHelper.getPendingActionsForOs(widget.osId);
+          await _dbHelper.getPendingActionsForOs(widget.os.id);
 
       final List<RegistroPonto> pontosPendentesNovos = [];
       final Map<int, Map<String, dynamic>> saidasPendentes = {};
@@ -248,7 +249,7 @@ class _PontoTabState extends State<PontoTab> {
 
         // --- CÓDIGO NOVO ---
         final response = await _apiClient.post(
-          '/ordens-servico/${widget.osId}/pontos/',
+          '/ordens-servico/${widget.os.id}/pontos/',
           payload,
         );
         // --- FIM DO CÓDIGO NOVO ---
@@ -271,7 +272,7 @@ class _PontoTabState extends State<PontoTab> {
         }
       } else {
         await _dbHelper.addPendingAction(
-          widget.osId,
+          widget.os.id,
           'register_ponto_entrada',
           payload,
         );
@@ -352,7 +353,7 @@ class _PontoTabState extends State<PontoTab> {
           ..['ponto_id'] = _pontoEmAbertoDoUsuario!.id;
 
         await _dbHelper.addPendingAction(
-          widget.osId,
+          widget.os.id,
           'register_ponto_saida',
           offlinePayload,
         );
@@ -507,20 +508,25 @@ class _PontoTabState extends State<PontoTab> {
                           },
                         ),
                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isLoading
-            ? null
-            : () =>
-                _showPontoDialog(isEntrada: _pontoEmAbertoDoUsuario == null),
-        label: Text(_pontoEmAbertoDoUsuario == null
-            ? 'Marcar Entrada'
-            : 'Encerrar Saída'),
-        icon:
-            Icon(_pontoEmAbertoDoUsuario == null ? Icons.login : Icons.logout),
-        backgroundColor: _pontoEmAbertoDoUsuario == null
-            ? AppColors.success
-            : AppColors.warning,
-      ),
+      floatingActionButton:
+          (widget.os.status == 'EM_EXECUCAO' || widget.os.status == 'REPROVADA')
+              ? FloatingActionButton.extended(
+                  onPressed: _isLoading
+                      ? null
+                      : () => _showPontoDialog(
+                            isEntrada: _pontoEmAbertoDoUsuario == null,
+                          ),
+                  label: Text(_pontoEmAbertoDoUsuario != null
+                      ? 'Marcar Saída'
+                      : 'Marcar Entrada'),
+                  icon: Icon(_pontoEmAbertoDoUsuario != null
+                      ? Icons.stop_circle_outlined
+                      : Icons.play_circle_outline),
+                  backgroundColor: _pontoEmAbertoDoUsuario != null
+                      ? AppColors.warning
+                      : AppColors.success,
+                )
+              : null, // Se o status não permitir, o botão não aparece
     );
   }
 

@@ -26,6 +26,7 @@ import '../models/tipo_documento.dart';
 import '../models/relatorio_campo.dart';
 import 'report_form_screen.dart';
 import '../models/registro_ponto.dart';
+import 'pdf_viewer_screen.dart';
 
 class OsDetailScreen extends StatefulWidget {
   final int osId;
@@ -291,15 +292,28 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
 
     // Lógica para habilitar o botão de conclusão
     bool canConclude = false;
-    if (_ordemServico != null &&
-        _ordemServico!.status != 'CONCLUIDA' &&
-        _ordemServico!.status != 'PENDENTE_APROVACAO') {
-      final hasClosedPonto =
-          _ordemServico!.pontos.any((p) => p.horaSaida != null);
-      final hasRelatorio = _ordemServico!.relatorios.isNotEmpty;
-      canConclude = isOnline && hasClosedPonto && hasRelatorio;
-    }
+    String disabledReason = '';
 
+    if (_ordemServico != null &&
+        (_ordemServico!.status == 'EM_EXECUCAO' ||
+            _ordemServico!.status == 'REPROVADA')) {
+      if (!isOnline) {
+        disabledReason = 'Você precisa estar online para concluir uma OS.';
+      } else {
+        final hasRelatorio = _ordemServico!.relatorios.isNotEmpty;
+        final hasOpenPonto =
+            _ordemServico!.pontos.any((p) => p.horaSaida == null);
+
+        if (!hasRelatorio) {
+          disabledReason = 'É necessário registrar pelo menos um relatório.';
+        } else if (hasOpenPonto) {
+          disabledReason =
+              'Existem pontos em aberto nesta OS que precisam ser encerrados.';
+        } else {
+          canConclude = true;
+        }
+      }
+    }
     return DefaultTabController(
       length: 5,
       child: Scaffold(
@@ -343,7 +357,7 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
                             child: _buildDetailsTab(_ordemServico!),
                           ),
                           PontoTab(
-                            osId: widget.osId,
+                            os: _ordemServico!,
                             onDataChanged:
                                 _fetchOsDetails, // PASSE A FUNÇÃO AQUI
                           ),
@@ -576,21 +590,24 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
                 // --- FIM DA ALTERAÇÃO ---
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // Esta lógica de recarregar a página ao voltar já está correta.
-          final result = await Navigator.pushNamed(
-            context,
-            '/report_form',
-            arguments: os.id,
-          );
-          if (result == true && mounted) {
-            _fetchOsDetails();
-          }
-        },
-        label: const Text('Novo Relatório'),
-        icon: const Icon(Icons.add),
-      ),
+      floatingActionButton:
+          (os.status == 'EM_EXECUCAO' || os.status == 'PLANEJADA')
+              ? FloatingActionButton.extended(
+                  onPressed: () async {
+                    // Esta lógica de recarregar a página ao voltar já está correta.
+                    final result = await Navigator.pushNamed(
+                      context,
+                      '/report_form',
+                      arguments: os.id,
+                    );
+                    if (result == true && mounted) {
+                      _fetchOsDetails();
+                    }
+                  },
+                  label: const Text('Novo Relatório'),
+                  icon: const Icon(Icons.add),
+                )
+              : null,
     );
   }
 
@@ -1012,6 +1029,39 @@ class _OsDetailScreenState extends State<OsDetailScreen> {
                 ],
               ),
               isThreeLine: true,
+              trailing: IconButton(
+                icon: const Icon(Icons.picture_as_pdf_outlined,
+                    color: AppColors.primary),
+                tooltip: 'Ver PDF',
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Baixando PDF...')),
+                  );
+                  try {
+                    final filePath =
+                        await _osRepository.downloadRelatorioPDF(relatorio.id);
+                    if (mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PdfViewerScreen(
+                            filePath: filePath,
+                            title: relatorio.tipoRelatorio.nome,
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Erro ao baixar PDF: $e'),
+                            backgroundColor: AppColors.error),
+                      );
+                    }
+                  }
+                },
+              ),
               onTap: () {
                 Navigator.of(context).pushNamed(
                   '/report_detail',

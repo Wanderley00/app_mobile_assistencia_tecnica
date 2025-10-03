@@ -62,7 +62,7 @@ import 'package:flutter_application/screens/notification_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-const String API_BASE_URL = 'http://192.168.18.8:8000/api';
+const String API_BASE_URL = 'http://192.168.8.212:8000/api';
 
 void main() async {
   // É uma boa prática inicializar o DB aqui
